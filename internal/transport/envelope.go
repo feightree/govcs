@@ -74,7 +74,7 @@ func decodeFrame(data []byte) (any, error) {
 		return nil, err
 	}
 
-	if len(raw) == 0 || raw == nil {
+	if len(raw) == 0 {
 		return nil, fmt.Errorf("malformed frame: %v", raw)
 	}
 
@@ -104,6 +104,7 @@ func decodeFrame(data []byte) (any, error) {
 			Action:   action,
 			Payload:  raw[3],
 		}, nil
+
 	case MessageTypeCallResult:
 		if len(raw) != 3 {
 			return nil, fmt.Errorf("invalid CallResult message: %+v", raw)
@@ -118,6 +119,7 @@ func decodeFrame(data []byte) (any, error) {
 			UniqueID: uniqueID,
 			Payload:  raw[2],
 		}, nil
+
 	case MessageTypeCallError:
 		if len(raw) != 5 {
 			return nil, fmt.Errorf("invalid CallError message: %+v", raw)
