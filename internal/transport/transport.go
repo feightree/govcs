@@ -25,22 +25,22 @@ type Transport struct {
 	// A channel for inbound messages (ie. MessageCalls)
 	in chan MessageCall
 	// Map for pending results by UniqueID
-	pending map[string]chan callResult
-	mu      sync.Mutex
-	closed  chan struct{}
+	pending  map[string]chan callResult
+	mu       sync.Mutex
+	once     sync.Once
+	closed   chan struct{}
+	closeErr error
 }
 
 func (tr *Transport) readLoop(ctx context.Context) {
 	for {
 		_, data, err := tr.conn.Read(ctx)
 		if err != nil {
-			close(tr.closed)
-			tr.mu.Lock()
-			for k, v := range tr.pending {
-				v <- callResult{err: err}
-				delete(tr.pending, k)
+			if err := tr.Close(); err != nil {
+				slog.ErrorContext(ctx, "error while closing transport",
+					slog.Any("error", err),
+				)
 			}
-			tr.mu.Unlock()
 			return
 		}
 
@@ -159,6 +159,16 @@ func (tr *Transport) RespondError(ctx context.Context, uniqueID, code, descripti
 	}
 
 	return tr.conn.Write(ctx, websocket.MessageText, frame)
+}
+
+func (tr *Transport) Close() error {
+	tr.once.Do(func() {
+		err := tr.conn.Close(websocket.StatusGoingAway, "closing")
+		tr.closeErr = err
+		close(tr.closed)
+	})
+
+	return tr.closeErr
 }
 
 type callResult struct {

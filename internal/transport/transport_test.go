@@ -644,3 +644,24 @@ func TestResponseError(t *testing.T) {
 		t.Errorf("\nExpected:\t%v\nGot:\t\t%v", "ErrorDetails", details)
 	}
 }
+
+func TestDial(t *testing.T) {
+	t.Run("websocket upgrade failure", func(t *testing.T) {
+
+		svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "nope", http.StatusForbidden)
+		}))
+		t.Cleanup(svr.Close)
+		url := strings.Replace(svr.URL, "http://", "ws://", 1)
+
+		tr, err := Dial(t.Context(), url, Options{})
+
+		if tr != nil {
+			t.Errorf("\nExpected:\t%v\nGot:\t\t%v", nil, tr)
+		}
+
+		if err == nil {
+			t.Errorf("\nExpected:\t%v\nGot:\t\t%v", nil, err)
+		}
+	})
+}
