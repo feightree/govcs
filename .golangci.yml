@@ -1,0 +1,31 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - staticcheck
+    - errcheck
+    - govet
+    - ineffassign
+    - unused
+  settings:
+    staticcheck:
+      checks:
+        - all
+      initialisms:
+        - EVSE
+        - EV
+        - DER
+        - V2X
+        - OCSP
+        - APN
+        - VPN
+        - SOC
+        - SOH
+        - OCPP
+        - CSMS
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck

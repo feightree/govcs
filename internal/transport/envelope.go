@@ -47,26 +47,36 @@ type MessageCallError struct {
 	ErrorDetails     json.RawMessage
 }
 
+// Error implements the error interface, allowing a MessageCallError to
+// be returned directly as an error - see Transport.Call.
 func (ce MessageCallError) Error() string {
 	return fmt.Sprintf("callerror %s: %s", ce.ErrorCode, ce.ErrorDescription)
 }
 
+// encodeCall builds a Call frame: [2, uniqueID, action, payload].
 func encodeCall(uniqueID, action string, payload any) ([]byte, error) {
 	return json.Marshal([]any{MessageTypeCall, uniqueID, action, payload})
 }
 
+// encodeCallResult builds a CallResult frame: [3, uniqueID, payload].
 func encodeCallResult(uniqueID string, payload any) ([]byte, error) {
 	return json.Marshal([]any{MessageTypeCallResult, uniqueID, payload})
 }
 
+// encodeCallError builds a CallError frame:
+// [4, uniqueID, code, description, details].
 func encodeCallError(uniqueID, code, description string, details any) ([]byte, error) {
 	if details == nil {
+		// OCPP-J requires the details field to be present even when
+		// there's nothing to report.
 		details = map[string]any{}
 	}
 
 	return json.Marshal([]any{MessageTypeCallError, uniqueID, code, description, details})
 }
 
+// decodeFrame decodes a raw OCPP-J frame into a MessageCall,
+// MessageCallResult, or MessageCallError, depending on its message type.
 func decodeFrame(data []byte) (any, error) {
 	var raw []json.RawMessage
 

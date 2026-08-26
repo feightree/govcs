@@ -13,25 +13,51 @@ import (
 	"github.com/coder/websocket"
 )
 
+// ErrTransportClosed is returned by Call when the Transport is closed -
+// or the connection is lost - while the call is in flight.
 var ErrTransportClosed = errors.New("transport closed")
 
+// Options configures a Dial.
 type Options struct {
+	// Subprotocol is the WebSocket subprotocol to negotiate during the
+	// handshake, e.g. "ocpp1.6".
 	Subprotocol string
 }
 
+// Transport manages a single WebSocket connection's lifecycle: sending
+// outbound Calls and correlating them with their CallResult/CallError
+// response, replying to inbound Calls, and delivering inbound Calls to
+// the caller via Inbound. A Transport is created by Dial and should
+// eventually be released with Close.
+//
+// All exported methods are safe for concurrent use.
 type Transport struct {
-	// The websocket connection
+	// conn is the underlying WebSocket connection.
 	conn *websocket.Conn
-	// A channel for inbound messages (ie. MessageCalls)
+	// in delivers inbound Call frames to the caller; see Inbound.
 	in chan MessageCall
-	// Map for pending results by UniqueID
-	pending  map[string]chan callResult
-	mu       sync.Mutex
-	once     sync.Once
-	closed   chan struct{}
+	// pending correlates an outbound Call's UniqueID with the channel
+	// waiting for its response. Only accessed while holding mu.
+	pending map[string]chan callResult
+	mu      sync.Mutex
+	// once guards the actual close, so it happens exactly once no
+	// matter whether Close is called directly or triggered by readLoop
+	// after a read error.
+	once sync.Once
+	// closed is closed exactly once, by Close, when the Transport shuts
+	// down. Any Call currently waiting for a response observes this via
+	// its own select and returns ErrTransportClosed - nothing else
+	// needs to react to it or touch pending on close.
+	closed chan struct{}
+	// closeErr is the result of the one real close attempt, cached so
+	// every caller of Close - not just the one that ran it - sees it.
 	closeErr error
 }
 
+// readLoop reads and dispatches frames for the lifetime of the
+// connection. It is started once, by Dial, and runs until conn.Read
+// returns an error - meaning the connection was closed or lost - at
+// which point it shuts the Transport down via Close.
 func (tr *Transport) readLoop(ctx context.Context) {
 	for {
 		_, data, err := tr.conn.Read(ctx)
@@ -46,7 +72,9 @@ func (tr *Transport) readLoop(ctx context.Context) {
 
 		decoded, err := decodeFrame(data)
 		if err != nil {
-			// a malformed frame from the peer - what should happen here?
+			// There's no caller waiting on this specific frame, so a
+			// malformed frame is logged and skipped rather than
+			// tearing down the whole connection over one bad frame.
 			slog.ErrorContext(ctx, "failed decoding frame",
 				slog.Any("error", err),
 			)
@@ -97,6 +125,15 @@ func (tr *Transport) readLoop(ctx context.Context) {
 	}
 }
 
+// Call sends an OCPP Call for action with the given payload, and blocks
+// until a matching CallResult or CallError arrives, ctx is done, or the
+// Transport is closed - whichever happens first.
+//
+// On success, it returns the raw CallResult payload. If the peer replies
+// with a CallError, the returned error is a MessageCallError (use
+// errors.As to inspect it). If ctx is done first, the returned error
+// wraps ctx.Err(). If the Transport is closed while waiting, the
+// returned error wraps ErrTransportClosed.
 func (tr *Transport) Call(ctx context.Context, action string, payload any) (json.RawMessage, error) {
 	id, err := newMessageID()
 	if err != nil {
@@ -139,10 +176,16 @@ func (tr *Transport) Call(ctx context.Context, action string, payload any) (json
 	}
 }
 
+// Inbound returns the channel on which inbound Call frames from the peer
+// are delivered. Callers should read from it continuously - readLoop
+// blocks trying to deliver a frame until it's received or the ctx passed
+// to Dial is done.
 func (tr *Transport) Inbound() <-chan MessageCall {
 	return tr.in
 }
 
+// Respond sends a CallResult for the inbound Call identified by
+// uniqueID, with the given payload.
 func (tr *Transport) Respond(ctx context.Context, uniqueID string, payload any) error {
 	frame, err := encodeCallResult(uniqueID, payload)
 	if err != nil {
@@ -152,6 +195,8 @@ func (tr *Transport) Respond(ctx context.Context, uniqueID string, payload any) 
 	return tr.conn.Write(ctx, websocket.MessageText, frame)
 }
 
+// RespondError sends a CallError for the inbound Call identified by
+// uniqueID.
 func (tr *Transport) RespondError(ctx context.Context, uniqueID, code, description string, details any) error {
 	frame, err := encodeCallError(uniqueID, code, description, details)
 	if err != nil {
@@ -161,6 +206,12 @@ func (tr *Transport) RespondError(ctx context.Context, uniqueID, code, descripti
 	return tr.conn.Write(ctx, websocket.MessageText, frame)
 }
 
+// Close closes the underlying connection and shuts the Transport down.
+// It is idempotent and safe to call concurrently or multiple times -
+// every caller sees the result of the one real close attempt, regardless
+// of whether Close was called directly or triggered by readLoop after a
+// read error. Any Call currently waiting for a response returns
+// ErrTransportClosed.
 func (tr *Transport) Close() error {
 	tr.once.Do(func() {
 		err := tr.conn.Close(websocket.StatusGoingAway, "closing")
@@ -171,11 +222,21 @@ func (tr *Transport) Close() error {
 	return tr.closeErr
 }
 
+// callResult is the outcome of a single outbound Call, delivered from
+// readLoop to the goroutine blocked in Call.
 type callResult struct {
 	payload json.RawMessage
 	err     error
 }
 
+// Dial establishes a WebSocket connection to url and returns a Transport
+// ready to send and receive OCPP-J messages over it. On success, a
+// background goroutine is started to read inbound frames for the
+// lifetime of the connection; callers should eventually call Close to
+// release it.
+//
+// If the connection cannot be established, Dial returns a nil Transport
+// and a non-nil error.
 func Dial(ctx context.Context, url string, opts Options) (*Transport, error) {
 	conn, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
 		Subprotocols: []string{opts.Subprotocol},
