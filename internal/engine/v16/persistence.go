@@ -29,7 +29,7 @@ func Save(cp *ChargePoint, path string) error {
 func Load(path string) (*ChargePoint, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("%w", err)
 	}
 
 	var cp ChargePoint

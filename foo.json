@@ -1,0 +1,23 @@
+{
+  "ID": "a",
+  "Vendor": "govcs",
+  "Model": "vcs",
+  "CSMS": "csms",
+  "IMSI": "imsi",
+  "ICCID": "",
+  "HeartbeatInterval": 60,
+  "Connectors": [
+    {
+      "ID": 1,
+      "Status": "Available",
+      "ErrorCode": "NoError",
+      "Transaction": null
+    },
+    {
+      "ID": 2,
+      "Status": "Available",
+      "ErrorCode": "NoError",
+      "Transaction": null
+    }
+  ]
+}
