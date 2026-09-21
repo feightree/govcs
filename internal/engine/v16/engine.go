@@ -34,6 +34,21 @@ type Profile interface {
 	// charger with quirky post-boot behavior - and is never called for
 	// Pending/Rejected responses, since those aren't a final outcome.
 	OnBootNotificationConf(cp *ChargePoint, conf *v16.BootNotificationConf)
+
+	// BuildHeartbeatReq constructs the HeartbeatReq to send for cp.
+	// HeartbeatReq carries no fields, so there's nothing for a profile to
+	// decide here today - the hook exists for symmetry with the rest of
+	// Profile and so a future profile has a place to hang quirky
+	// heartbeat behavior, should the need arise.
+	BuildHeartbeatReq(cp *ChargePoint) v16.HeartbeatReq
+
+	// OnHeartbeatConf is called after every HeartbeatConf. Unlike the
+	// Boot hooks, this isn't engine bookkeeping tucked behind a
+	// best-effort callback: recording (or deliberately mis-recording)
+	// cp.ClockOffset from conf.CurrentTime is entirely the profile's
+	// call, so a profile simulating a charger with a broken clock can
+	// simply not do it, or do it wrong.
+	OnHeartbeatConf(cp *ChargePoint, conf *v16.HeartbeatConf)
 }
 
 // backoffDelay returns how long to wait before retrying the attempt-th

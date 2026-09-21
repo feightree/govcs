@@ -50,6 +50,12 @@ type ChargePoint struct {
 	MeterSerialNumber v16.CiString25Type
 	MeterType         v16.CiString25Type
 	Connectors        []Connector
+	// ClockOffset is CurrentTime minus the local clock at the moment it
+	// was last recorded from a BootNotificationConf or HeartbeatConf:
+	// positive means the CSMS's clock is ahead of the local one. Add it
+	// to time.Now() to get the charger's belief of the current CSMS
+	// time.
+	ClockOffset time.Duration
 }
 
 func (cp *ChargePoint) Validate() error {

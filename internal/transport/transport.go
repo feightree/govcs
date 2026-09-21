@@ -184,6 +184,17 @@ func (tr *Transport) Inbound() <-chan MessageCall {
 	return tr.in
 }
 
+// Closed returns a channel that's closed once the Transport has shut
+// down, whether via an explicit Close or because the underlying
+// connection was lost. Callers can select on it to detect disconnection
+// without having a Call in flight; it never delivers a value, only the
+// close itself is the signal - and it's safe to read from repeatedly, or
+// after the Transport is already closed, since a closed channel always
+// yields immediately.
+func (tr *Transport) Closed() <-chan struct{} {
+	return tr.closed
+}
+
 // Respond sends a CallResult for the inbound Call identified by
 // uniqueID, with the given payload.
 func (tr *Transport) Respond(ctx context.Context, uniqueID string, payload any) error {
