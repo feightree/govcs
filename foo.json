@@ -1,11 +1,15 @@
 {
-  "ID": "a",
+  "ID": "foo",
+  "CSMSURL": "wss://foobar",
+  "HeartbeatInterval": 60,
+  "SerialNumber": "",
   "Vendor": "govcs",
   "Model": "vcs",
-  "CSMS": "csms",
-  "IMSI": "imsi",
+  "IMSI": "",
   "ICCID": "",
-  "HeartbeatInterval": 60,
+  "FirmwareVersion": "",
+  "MeterSerialNumber": "",
+  "MeterType": "",
   "Connectors": [
     {
       "ID": 1,

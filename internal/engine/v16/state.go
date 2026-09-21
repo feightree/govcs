@@ -1,8 +1,11 @@
 package v16
 
 import (
+	"fmt"
+	"net/url"
 	"time"
 
+	ocpp "github.com/feightree/gocpp/ocpp"
 	v16 "github.com/feightree/gocpp/v16"
 )
 
@@ -36,13 +39,86 @@ type Transaction struct {
 // goroutine - there is no internal locking.
 type ChargePoint struct {
 	ID                string
-	Vendor            string
-	Model             string
-	CSMS              string
-	IMSI              string
-	ICCID             string
+	CSMSURL           string
 	HeartbeatInterval int32
+	SerialNumber      v16.CiString25Type
+	Vendor            v16.CiString20Type
+	Model             v16.CiString20Type
+	IMSI              v16.CiString20Type
+	ICCID             v16.CiString20Type
+	FirmwareVersion   v16.CiString50Type
+	MeterSerialNumber v16.CiString25Type
+	MeterType         v16.CiString25Type
 	Connectors        []Connector
+}
+
+func (cp *ChargePoint) Validate() error {
+	if cp.ID == "" {
+		return ocpp.NewError(ocpp.ErrOccurenceConstraintViolation, "id", "required field is missing")
+	}
+
+	if cp.CSMSURL == "" {
+		return ocpp.NewError(ocpp.ErrOccurenceConstraintViolation, "csms", "required field is missing")
+	}
+
+	u, err := url.ParseRequestURI(cp.CSMSURL)
+	if err != nil {
+		return ocpp.NewError(ocpp.ErrFormationViolation, "csms", "is an invalid URL")
+	}
+
+	if u.Scheme != "ws" && u.Scheme != "wss" {
+		return ocpp.NewError(
+			ocpp.ErrFormationViolation,
+			"csms",
+			fmt.Sprintf("'%s' is an invalid websocket scheme - must be 'ws' or 'wss'", u.Scheme),
+		)
+	}
+
+	if u.Host == "" {
+		return ocpp.NewError(
+			ocpp.ErrFormationViolation,
+			"csms",
+			fmt.Sprintf("'%s' is an invalid host", u.Host),
+		)
+	}
+
+	if cp.HeartbeatInterval == 0 {
+		return ocpp.NewError(ocpp.ErrPropertyConstraintViolation, "heartbeat", "must be > 0")
+	}
+
+	if err := cp.SerialNumber.Validate(); err != nil {
+		return ocpp.WrapField("SerialNumber", err)
+	}
+
+	if err := cp.Vendor.Validate(); err != nil {
+		return ocpp.WrapField("Vendor", err)
+	}
+
+	if err := cp.Model.Validate(); err != nil {
+		return ocpp.WrapField("Model", err)
+	}
+
+	if err := cp.IMSI.Validate(); err != nil {
+		return ocpp.WrapField("IMSI", err)
+	}
+
+	if err := cp.ICCID.Validate(); err != nil {
+		return ocpp.WrapField("ICCID", err)
+	}
+
+	if err := cp.FirmwareVersion.Validate(); err != nil {
+		return ocpp.WrapField("FirmwareVersion", err)
+	}
+
+	if err := cp.MeterSerialNumber.Validate(); err != nil {
+		return ocpp.WrapField("MeterSerialNumber", err)
+	}
+
+	if err := cp.MeterType.Validate(); err != nil {
+		return ocpp.WrapField("MeterType", err)
+	}
+
+	return nil
 }
 
 // connectorByID returns the connector with the given ID, or nil if none
