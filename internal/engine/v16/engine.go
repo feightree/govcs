@@ -51,6 +51,10 @@ type Profile interface {
 	OnHeartbeatConf(cp *ChargePoint, conf *v16.HeartbeatConf)
 }
 
+func run(ctx context.Context, tr *transport.Transport, cp *ChargePoint, p Profile) error {
+	return nil
+}
+
 // backoffDelay returns how long to wait before retrying the attempt-th
 // failed connection attempt (0-indexed). The delay grows exponentially
 // from base, doubling each attempt, capped at max. Jitter is applied by
