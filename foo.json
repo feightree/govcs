@@ -1,5 +1,5 @@
 {
-  "ID": "foo",
+  "ID": "foo2",
   "CSMSURL": "wss://foobar",
   "HeartbeatInterval": 60,
   "SerialNumber": "",
